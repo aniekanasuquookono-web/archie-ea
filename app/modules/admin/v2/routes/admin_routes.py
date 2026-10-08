@@ -3335,7 +3335,6 @@ def api_bulk_delete_users():
 @admin_bp_v2.route("/api/roles", methods=["GET"])
 @timed_route
 @login_required
-@platform_admin_required
 @admin_required
 def api_list_roles():
     """List all roles with user counts and permission flags.
