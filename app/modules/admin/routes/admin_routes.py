@@ -1217,7 +1217,7 @@ def feature_flags_create_from_sidebar():
 
 @admin_bp.route("/abacus-settings", methods=["GET", "POST"])
 @login_required
-@admin_required
+@platform_admin_required
 @audit_log("admin_abacus_settings_save")
 def abacus_settings():
     """Manage Abacus connector configuration."""
@@ -1409,7 +1409,7 @@ def abacus_settings():
 
 @admin_bp.route("/abacus-settings/test-connection", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 @audit_log("test_abacus_connection")
 def test_abacus_connection():
     """Test Abacus connection."""
@@ -1497,7 +1497,7 @@ def test_abacus_connection():
 
 @admin_bp.route("/abacus-settings/trigger-sync", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 @audit_log("admin_abacus_sync_trigger")
 def trigger_abacus_sync():
     """Trigger manual Abacus synchronization."""
@@ -1546,7 +1546,7 @@ def trigger_abacus_sync():
 
 @admin_bp.route("/abacus-settings/sync-status", methods=["GET"])
 @login_required
-@admin_required
+@platform_admin_required
 def abacus_sync_status():
     """API endpoint to check current sync job status."""
     from app.models import Job
@@ -1580,7 +1580,7 @@ def abacus_sync_status():
 
 @admin_bp.route("/abacus-settings/cancel-job/<int:job_id>", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 @audit_log("admin_abacus_job_cancel")
 def cancel_abacus_job(job_id):
     """Cancel a running or pending Abacus sync job."""
@@ -1614,7 +1614,7 @@ def cancel_abacus_job(job_id):
 
 @admin_bp.route("/abacus-settings/stats", methods=["GET"])
 @login_required
-@admin_required
+@platform_admin_required
 def abacus_stats():
     """Get Abacus import statistics."""
     try:
@@ -1785,7 +1785,7 @@ def governance_gates_delete(gate_id):
 
 @admin_bp.route("/abacus-settings/discover-filters", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def discover_abacus_filters():
     """Discover available filter dimensions from the Abacus API."""
     import asyncio
@@ -1839,7 +1839,7 @@ def discover_abacus_filters():
 
 @admin_bp.route("/abacus-dashboard", methods=["GET"])
 @login_required
-@admin_required
+@platform_admin_required
 def abacus_dashboard():
     """Display Abacus sync dashboard with health metrics and statistics."""
     from app.models.application_portfolio import ApplicationComponent
@@ -1921,6 +1921,12 @@ def abacus_dashboard():
 
 @admin_bp.route("/seed-management")
 @login_required
+# SeedManagementService seeds global reference/catalogue tables shared by
+# every tenant (vendor organisations/products, capability taxonomies, feature
+# flags, APQC processes, AI prompt templates, ...), none of them org-scoped.
+# admin_required alone let any tenant's own admin reach it
+# (R1 admin-rbac systemic fix).
+@platform_admin_required
 @admin_required
 def seed_management():
     """Seed management dashboard."""
@@ -1934,6 +1940,7 @@ def seed_management():
 
 @admin_bp.route("/api/seed-status")
 @login_required
+@platform_admin_required
 @admin_required
 def seed_status():
     """API: Get current seed status."""
@@ -1947,6 +1954,7 @@ def seed_status():
 
 @admin_bp.route("/api/seed/<key>", methods=["POST"])
 @login_required
+@platform_admin_required
 @admin_required
 @audit_log("admin_seed_run")
 def seed(key):
@@ -1961,6 +1969,7 @@ def seed(key):
 
 @admin_bp.route("/api/seed-all", methods=["POST"])
 @login_required
+@platform_admin_required
 @admin_required
 @audit_log("admin_seed_all")
 def seed_all():
@@ -2618,7 +2627,7 @@ def api_bulk_delete_users():
 
 @admin_bp.route("/jira-settings", methods=["GET", "POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_settings():
     """Manage Jira push integration configuration."""
     from flask_wtf import FlaskForm
@@ -2765,7 +2774,7 @@ def jira_settings():
 
 @admin_bp.route("/jira-settings/test-connection", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_test_connection():
     """Test Jira API connectivity."""
     import asyncio
@@ -2885,7 +2894,7 @@ def jira_webhook():
 
 @admin_bp.route("/jira-settings/save-env-config", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def save_env_jira_config():
     """Save .env Jira credentials to database."""
     from app.models.models import ExternalSystem
@@ -2920,7 +2929,7 @@ def save_env_jira_config():
 
 @admin_bp.route("/jira-settings/trigger-push", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_trigger_push():
     """Create a Job and start pushing applications to Jira."""
     from app.models.job import Job, JobStatus
@@ -2957,7 +2966,7 @@ def jira_trigger_push():
 
 @admin_bp.route("/jira-settings/push-status", methods=["GET"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_push_status():
     """Return JSON push status for polling."""
     from app.models.job import Job
@@ -2978,7 +2987,7 @@ def jira_push_status():
 
 @admin_bp.route("/jira-settings/kanban-push-status", methods=["GET"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_kanban_push_status():
     """Return JSON kanban push status for polling."""
     try:
@@ -2993,7 +3002,7 @@ def jira_kanban_push_status():
 
 @admin_bp.route("/jira-settings/trigger-kanban-push", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_trigger_kanban_push():
     """Push all unpushed KanbanCard rows to Jira."""
     try:
@@ -3008,7 +3017,7 @@ def jira_trigger_kanban_push():
 
 @admin_bp.route("/jira-settings/push-epics", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_push_epics():
     """Create one Jira Epic per ADM phase."""
     try:
@@ -3022,7 +3031,7 @@ def jira_push_epics():
 
 @admin_bp.route("/jira-settings/push-applications", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_push_applications():
     """Push ApplicationComponents to Jira."""
     try:
@@ -3036,7 +3045,7 @@ def jira_push_applications():
 
 @admin_bp.route("/jira-settings/push-dependencies", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_push_dependencies():
     """Create Jira Subtasks from KanbanCard dependencies."""
     try:
@@ -3050,7 +3059,7 @@ def jira_push_dependencies():
 
 @admin_bp.route("/jira-settings/field-discovery", methods=["GET"])
 @login_required
-@admin_required
+@platform_admin_required
 def jira_field_discovery():
     """Return available Jira fields for the configured project."""
     import asyncio
@@ -3890,7 +3899,7 @@ def power_platform_import():
 
 @admin_bp.route("/integrations/servicenow", methods=["GET", "POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def servicenow_integration():
     """Manage ServiceNow CMDB integration configuration."""
     from flask_wtf import FlaskForm
@@ -4048,7 +4057,7 @@ def servicenow_integration():
 
 @admin_bp.route("/integrations/servicenow/test-connection", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 def servicenow_test_connection():
     """Test ServiceNow CMDB connection."""
     from app.modules.vendors.connectors.servicenow_connector import ServiceNowConnector
@@ -4096,7 +4105,7 @@ def servicenow_test_connection():
 
 @admin_bp.route("/integrations/servicenow/trigger-sync", methods=["POST"])
 @login_required
-@admin_required
+@platform_admin_required
 @audit_log
 def servicenow_trigger_sync():
     """Trigger immediate ServiceNow CMDB sync."""
@@ -4165,7 +4174,7 @@ def servicenow_trigger_sync():
 
 @admin_bp.route("/integrations/servicenow/sync-status", methods=["GET"])
 @login_required
-@admin_required
+@platform_admin_required
 def servicenow_sync_status():
     """Get ServiceNow sync status and statistics."""
     from app.models.application_portfolio import ApplicationComponent
