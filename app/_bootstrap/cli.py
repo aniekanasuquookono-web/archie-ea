@@ -376,6 +376,13 @@ def init_cli(app):
     except Exception as e:
         app.logger.warning(f"Failed to register audit trail backfill CLI: {e}")
 
+    try:
+        from app.commands.indexnow_commands import init_app as init_indexnow
+        init_indexnow(app)
+        app.logger.info("IndexNow ping CLI command registered")
+    except Exception as e:
+        app.logger.warning(f"Failed to register IndexNow ping CLI: {e}")
+
     # CMP-01: SavedDiagram gained TenantMixin (runs on boot after reconcile-schema)
     try:
         from app.commands.backfill_saved_diagram_tenancy import init_app as init_saved_diagram_tenancy
@@ -508,6 +515,14 @@ def init_cli(app):
         app.logger.info("✅ Application owners backfill CLI command registered")
     except Exception as e:
         app.logger.warning(f"⚠️  Failed to register application owners backfill CLI: {e}")
+
+    # Cost fact store backfill
+    try:
+        from app.commands import backfill_cost_facts
+        backfill_cost_facts.init_app(app)
+        app.logger.info("✅ Cost fact backfill CLI command registered")
+    except Exception as e:
+        app.logger.warning(f"⚠️  Failed to register cost fact backfill CLI: {e}")
 
     try:
         from app.commands.clear_foreign_assignees import init_app as init_clear_foreign_assignees
