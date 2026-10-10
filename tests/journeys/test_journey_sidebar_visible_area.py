@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlparse
 
 import pytest
+from playwright.sync_api import expect
 
 from .conftest import login, make_org, make_user
 
