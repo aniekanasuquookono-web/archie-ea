@@ -76,7 +76,24 @@ def _check_solution_access(solution_id):
         return  # Model not available — skip check gracefully
     if not sol:
         return  # Solution doesn't exist — let downstream handle
-    if hasattr(current_user, "is_admin") and current_user.is_admin():
+    # D-4 (admin-rbac-active-org continuation): this used to be
+    # ``hasattr(current_user, "is_admin") and current_user.is_admin()`` -- a
+    # global Permission.ADMINISTER flag, independent of which organisation
+    # is active in the session. Since every self-registered user is
+    # Administrator of their own organisation, a user who merely accepted a
+    # Viewer invitation into another organisation and switched their session
+    # into it could edit any solution's diagrams there too, not just their
+    # own -- the exact bug admin_required/org_admin_required already fix
+    # elsewhere in this PR.
+    from flask import g
+
+    from app.middleware.tenant_decorators import is_platform_admin
+    from app.services.rbac_service import rbac_service
+
+    _active_org_id = getattr(g, "current_org_id", None)
+    if is_platform_admin(current_user) or rbac_service.is_org_admin(
+        current_user, _active_org_id
+    ):
         return
     if getattr(sol, "owner_id", None) and sol.owner_id == current_user.id:
         return
@@ -109,11 +126,20 @@ def _run_archimate_llm_generation(requirements, context, target_layer="complete"
     """Run ArchiMate generation with an application-context timeout guard."""
     from app.modules.architecture.services.archimate_llm_service import ArchiMateLLMService
 
+    from contextlib import nullcontext
+
+    from flask import g
+
+    from app.jobs.tenant_safe_job import tenant_scope
+
     svc = ArchiMateLLMService()
     app_obj = current_app._get_current_object()
+    # The worker thread has its own context and so no session organisation;
+    # carry the caller's into it so row-level security shows it its rows.
+    org_id = getattr(g, "current_org_id", None)
 
     def _call_llm():
-        with app_obj.app_context():
+        with app_obj.app_context(), (tenant_scope(org_id) if org_id is not None else nullcontext()):
             try:
                 model_data, _ = svc.generate_archimate_from_requirements(
                     requirements=requirements,
@@ -2790,6 +2816,23 @@ def api_export_saved_viewpoint(vp_id):
     Returns:
         application/xml with ArchiMate Open Exchange Format content.
     """
+    # Hardening pass alongside the snapshot-route fix (same file, same class
+    # of gap): every exporter below reaches the diagram through
+    # load_viewpoint_dict's bare db.session.get(SavedDiagram, vp_id) rather
+    # than the tenant-scoped helper. SavedDiagram IS a TenantMixin, so a
+    # genuinely fresh request (nothing already loaded for this id) still gets
+    # the tenant predicate applied on that SELECT — this is not a currently
+    # reproducible cross-org read, unlike the snapshot routes above. But it is
+    # the same unscoped-lookup-as-authorization pattern, and relies on no
+    # earlier code in the request having already touched this exact
+    # SavedDiagram row (Session.get() answers from the identity map without
+    # re-applying the tenant filter once a row is cached). Verifying ownership
+    # explicitly here removes that dependency rather than leaving it to hold
+    # by accident.
+    vp = _get_saved_diagram_scoped(vp_id)
+    if not vp:
+        return jsonify({"error": "Diagram not found"}), 404
+
     fmt = request.args.get("format", "archimate_exchange")
     _supported = {"archimate_exchange", "mermaid", "lucid", "archi"}
     if fmt not in _supported:
@@ -3010,8 +3053,20 @@ def api_get_snapshot(vp_id, sid):
 
     from app.models.archimate_viewpoint import ArchimateViewpointSnapshot
 
-    snapshot = db.session.get(ArchimateViewpointSnapshot, sid)
-    if not snapshot or snapshot.viewpoint_id != vp_id:
+    # CMP-025/CVE-style fix: verify the viewpoint's ownership FIRST (scoped
+    # query, applies the tenant predicate), THEN load the snapshot scoped to
+    # that already-verified viewpoint in one filtered query. The previous
+    # code loaded the snapshot with a bare db.session.get() (ArchimateViewpointSnapshot
+    # carries no organization_id of its own) and only checked that the
+    # snapshot's own stored viewpoint_id equalled vp_id — an internal
+    # consistency check, not an ownership check, so any organisation's user
+    # supplying another organisation's own (vp_id, sid) pair could read it.
+    vp = _get_saved_diagram_scoped(vp_id)
+    if not vp:
+        return jsonify({"error": "Diagram not found"}), 404
+
+    snapshot = ArchimateViewpointSnapshot.query.filter_by(id=sid, viewpoint_id=vp_id).first()
+    if not snapshot:
         return jsonify({"error": "Snapshot not found"}), 404
 
     return jsonify({
@@ -3039,13 +3094,19 @@ def api_restore_snapshot(vp_id, sid):
     )
     from app.models.archimate_viewpoint import ArchimateViewpointSnapshot
 
-    snapshot = db.session.get(ArchimateViewpointSnapshot, sid)
-    if not snapshot or snapshot.viewpoint_id != vp_id:
-        return jsonify({"error": "Snapshot not found"}), 404
-
+    # CMP-025/CVE-style fix: verify the viewpoint's ownership FIRST (scoped
+    # query, applies the tenant predicate), THEN load the snapshot scoped to
+    # that already-verified viewpoint in one filtered query — see
+    # api_get_snapshot above for the full rationale. Loading the snapshot
+    # first with a bare db.session.get() and only comparing viewpoint_id
+    # afterwards was an internal consistency check, not an ownership check.
     vp = _get_saved_diagram_scoped(vp_id)
     if not vp:
         return jsonify({"error": "Diagram not found"}), 404
+
+    snapshot = ArchimateViewpointSnapshot.query.filter_by(id=sid, viewpoint_id=vp_id).first()
+    if not snapshot:
+        return jsonify({"error": "Snapshot not found"}), 404
 
     snap_data = _json.loads(snapshot.snapshot_json)
 

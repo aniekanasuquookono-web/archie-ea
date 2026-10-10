@@ -203,6 +203,7 @@ element_templates
 enterprise_capabilities
 equipment
 error_events
+exchange_rates
 exception_process
 experience_elements
 external_systems
@@ -290,12 +291,14 @@ process_actor_raci
 process_application_mapping
 process_embeddings
 process_role_raci
+product_inquiries
 product_taxonomy
 production_lines
 production_orders
 project_constraints
 project_notes
 project_resources
+public_visitor_events
 published_api_specs
 quality_attributes
 rag_metrics

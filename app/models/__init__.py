@@ -107,6 +107,7 @@ else:
     )  # ARB-002, ARB-004
     from .application_portfolio import *  # noqa - ApplicationComponent, ApplicationTechnologyInstance, VendorContract
     from .application_rationalization import *  # noqa - ApplicationReplacement, ApplicationDependency, ApplicationRationalizationScore, VendorConcentrationAnalysis
+    from .formula_register import FormulaRegister  # noqa - R1-B34, versioned composite-score formulas
     from .archimate_motivation import *  # noqa - MotivationStakeholder, MotivationAssessment, MotivationOutcome, MotivationConstraint, MotivationValue, MotivationMeaning (ArchiMate 3.2 Motivation Layer)
     from .business_capabilities import (  # noqa
         ApplicationCapabilityCoverage,
@@ -122,6 +123,7 @@ else:
     from .application_compliance import *  # noqa - ApplicationComplianceControl (application-to-control mapping)
     from .regulatory_framework import *  # noqa - FrameworkAdoption (tenant-hybrid framework catalogue)
     from .regulatory_change import *  # noqa - RegulatoryChange, RegulatoryChangeImpact (regulatory change tracker)
+    from .cost_fact import *  # noqa - CostFact, ExchangeRate (one cost fact store)
     from .cost_intelligence import *  # noqa - CapabilityCostAllocation, VendorContract, SLA (Cost intelligence)
     from .decision_ledger import *  # noqa - DecisionLedger (append-only governance ledger)
 
@@ -225,6 +227,13 @@ else:
     # Dashboard edits store
     from .dashboard_edit import *  # noqa
     from .data_governance import *  # noqa - DataCatalog, DataQualityMetrics, DataGovernanceWorkflow, DataAccessControl, DataRetentionPolicy
+    from .data_issue import *  # noqa - DataIssue (R1-B81)
+    # agent_charter (R1-B22) was never imported here, so AgentRegistration's
+    # relationship to it only resolved when something else happened to
+    # import agent_charter.py first -- fixed by registering it properly,
+    # before the model that references it.
+    from .agent_charter import *  # noqa - AgentCharter (R1-B22)
+    from .agent_registration import *  # noqa - AgentRegistration (R1-B56)
 
     # Derivation Audit Models - APQC to ArchiMate derivation tracking (Phase 6.1)
 
@@ -462,6 +471,8 @@ else:
     # elements) — no new table required; see
     # app/modules/data_lineage/services.py.
     from .waitlist_signup import WaitlistSignup  # noqa: F401
+    from .product_inquiry import ProductInquiry  # noqa: F401
+    from .public_visitor_event import PublicVisitorEvent  # noqa: F401
     from .pending_invitation import PendingInvitation  # noqa: F401
     from .account_token import AccountToken  # noqa: F401
 

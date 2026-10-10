@@ -116,6 +116,9 @@ class ImplementationWorkPackage(db.Model):
         nullable=True,
         index=True,
     )
+    # Set when the row is copied across (merge or bridge); survives the unified
+    # copy's deletion so the row is never merged again.
+    retired_at = Column(DateTime, nullable=True)
 
     # Relationships
     architecture = db.relationship("ArchitectureModel", backref="planning_work_packages")
@@ -503,6 +506,11 @@ class ImplementationGap(db.Model):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = Column(String(255))
     resolved_date = Column(DateTime, nullable=True)
+
+    # Set once this row has been merged into the one gap register (app.models.
+    # implementation_migration.Gap) by app/commands/consolidate_gaps.py. NULL
+    # means not yet merged; the row itself is never dropped (CLAUDE.md).
+    retired_into_id = Column(Integer, ForeignKey("gaps.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Foreign Keys
     architecture_id = Column(Integer, ForeignKey("architecture_models.id"), nullable=True)

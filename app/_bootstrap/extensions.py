@@ -444,10 +444,15 @@ def init_scheduler(app):
         def run_approval_escalation():
             with app.app_context():
                 try:
+                    from app.jobs.tenant_safe_job import platform_scope
                     from app.modules.ai_chat.services.ai_chat_approval_service import (
                         escalate_overdue_approvals,
                     )
-                    escalate_overdue_approvals(app)
+
+                    # Sweeps every organisation's overdue approvals in one pass and
+                    # groups them by organization_id itself.
+                    with platform_scope("approval escalation: one sweep across every organisation's overdue approvals"):
+                        escalate_overdue_approvals(app)
                 except Exception as exc:
                     import logging
                     logging.getLogger(__name__).error(
@@ -536,7 +541,12 @@ def init_scheduler(app):
                             ARBWaiverExpiryBatchService,
                         )
 
-                        result = ARBWaiverExpiryBatchService.run_configured()
+                        from app.jobs.tenant_safe_job import platform_scope
+
+                        # One locked batch over the configured organisations; every
+                        # statement in it names its organization_id explicitly.
+                        with platform_scope("typed ARB waiver expiry: the configured organisations in one locked batch"):
+                            result = ARBWaiverExpiryBatchService.run_configured()
                         import logging
                         log = logging.getLogger(__name__)
                         if result.failed_count:
@@ -587,8 +597,13 @@ def init_scheduler(app):
             def run_capability_projection():
                 with app.app_context():
                     from app.jobs.capability_projection_job import run_capability_projection_job
+                    from app.jobs.tenant_safe_job import platform_scope
 
-                    run = run_capability_projection_job()
+                    # All-tenant by design (see the module docstring on
+                    # capability_projection_job); the projection reads and writes
+                    # every organisation's business_capability rows in one pass.
+                    with platform_scope("capability projection: one all-tenant pass over business_capability"):
+                        run = run_capability_projection_job()
                     if run.status == "failed":
                         app.logger.error(
                             "APScheduler capability projection failed: %s", run.as_dict()
@@ -701,6 +716,38 @@ def init_scheduler(app):
             max_instances=1,
         )
 
+        # Event-log partition maintenance: creates the next three months'
+        # partitions if missing. Runs daily so partitions exist before any
+        # outbox event needs them.  Platform job — partitions are shared
+        # across all organisations.
+        event_log_partition_registered = False
+        try:
+            def run_event_log_partition_maintenance():
+                with app.app_context():
+                    from app.services.event_log_service import (
+                        ensure_future_partitions,
+                    )
+                    created = ensure_future_partitions(months_ahead=3)
+                    app.logger.info(
+                        "event_log partition maintenance: %s partitions created",
+                        created,
+                    )
+
+            scheduler.add_job(
+                func=run_event_log_partition_maintenance,
+                trigger=CronTrigger(hour=3, minute=0),
+                id="event_log_partition_maintenance",
+                name="Event Log Partition Maintenance",
+                replace_existing=True,
+                max_instances=1,
+            )
+            event_log_partition_registered = True
+        except Exception as exc:
+            app.logger.error(
+                "Event-log partition maintenance job was not registered: %s",
+                exc,
+            )
+
         # Per-organisation model-health / drift scan. Runs the
         # deterministic drift detector for every active organisation and
         # stores the report so the page reads a single row rather than
@@ -791,6 +838,8 @@ def init_scheduler(app):
             scheduled_jobs += ", derived-facts recompute (interval)"
         if model_health_registered:
             scheduled_jobs += ", model-health drift scan (interval)"
+        if event_log_partition_registered:
+            scheduled_jobs += ", event log partition maintenance (daily)"
         app.logger.info("APScheduler started: %s", scheduled_jobs)
     except ImportError:
         app.logger.warning("APScheduler not available — EA workflow schedules disabled")

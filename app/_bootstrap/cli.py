@@ -233,6 +233,13 @@ def init_cli(app):
         app.logger.warning(f"\u26a0\ufe0f  Failed to register integration flow columns CLI: {e}")
 
     try:
+        from app.commands.backfill_meaning_tenancy import init_app as init_backfill_meaning
+        init_backfill_meaning(app)
+        app.logger.info("Meaning tenancy backfill CLI command registered")
+    except Exception as e:
+        app.logger.warning(f"\u26a0\ufe0f  Failed to register meaning tenancy backfill CLI: {e}")
+
+    try:
         from app.commands.reconcile_schema import init_app as init_reconcile_schema
         init_reconcile_schema(app)
         app.logger.info("\u2705 Schema reconcile CLI command registered")
@@ -369,6 +376,13 @@ def init_cli(app):
     except Exception as e:
         app.logger.warning(f"Failed to register audit trail backfill CLI: {e}")
 
+    try:
+        from app.commands.indexnow_commands import init_app as init_indexnow
+        init_indexnow(app)
+        app.logger.info("IndexNow ping CLI command registered")
+    except Exception as e:
+        app.logger.warning(f"Failed to register IndexNow ping CLI: {e}")
+
     # CMP-01: SavedDiagram gained TenantMixin (runs on boot after reconcile-schema)
     try:
         from app.commands.backfill_saved_diagram_tenancy import init_app as init_saved_diagram_tenancy
@@ -502,12 +516,27 @@ def init_cli(app):
     except Exception as e:
         app.logger.warning(f"⚠️  Failed to register application owners backfill CLI: {e}")
 
+    # Cost fact store backfill
+    try:
+        from app.commands import backfill_cost_facts
+        backfill_cost_facts.init_app(app)
+        app.logger.info("✅ Cost fact backfill CLI command registered")
+    except Exception as e:
+        app.logger.warning(f"⚠️  Failed to register cost fact backfill CLI: {e}")
+
     try:
         from app.commands.clear_foreign_assignees import init_app as init_clear_foreign_assignees
         init_clear_foreign_assignees(app)
         app.logger.info("✅ Clear foreign assignees CLI command registered")
     except Exception as e:
         app.logger.warning(f"⚠️  Failed to register clear foreign assignees CLI: {e}")
+
+    try:
+        from app.commands.scan_eol_alerts import init_app as init_scan_eol_alerts
+        init_scan_eol_alerts(app)
+        app.logger.info("✅ End-of-support alert scan CLI command registered")
+    except Exception as e:
+        app.logger.warning(f"⚠️  Failed to register end-of-support alert scan CLI: {e}")
 
 # One risk register: copy solution_risks rows into the canonical risks table
     try:
@@ -516,6 +545,14 @@ def init_cli(app):
         app.logger.info("✅ Solution risk merge backfill CLI command registered")
     except Exception as e:
         app.logger.warning(f"⚠️  Failed to register solution risk merge backfill CLI: {e}")
+
+    # Gap register consolidation: merge roadmap_gaps, implementation_gaps and compliance_gaps into gaps
+    try:
+        from app.commands.consolidate_gaps import init_app as init_consolidate_gaps
+        init_consolidate_gaps(app)
+        app.logger.info("✅ Gap register consolidation CLI command registered")
+    except Exception as e:
+        app.logger.warning(f"⚠️  Failed to register gap register consolidation CLI: {e}")
 
     # unified_work_packages gained TenantMixin; four other stores merge into it
     try:

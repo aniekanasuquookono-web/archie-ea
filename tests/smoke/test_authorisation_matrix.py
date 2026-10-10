@@ -41,8 +41,24 @@ DENIED = "denied"
 # covers it, which matters because the chat sees the whole portfolio.
 POLICY = {
     "/procurement/contracts":  {"procurement", "portfolio_manager"},
-    "/procurement/licenses":   {"procurement", "portfolio_manager"},
+    # R1-B36 (TB-0146): finance added via requires_procurement_or_finance --
+    # licences/spend are a finance persona's own numbers. Deliberately NOT
+    # extended to contracts/renewals/compliance below, which stay
+    # requires_procurement-only.
+    "/procurement/licenses":   {"procurement", "portfolio_manager", "finance"},
+    "/procurement/spend":      {"procurement", "portfolio_manager", "finance"},
     "/procurement/compliance": {"procurement", "portfolio_manager"},
+    # R1-B34 (TB-0135): viewing the register is @login_required only (every
+    # archetype can see a formula's active version); activating a new one
+    # is gated to portfolio_manager by @requires_role in
+    # app/modules/formula_register/routes.py. This row is the view page.
+    "/admin/formula-register/": set(ARCHETYPES),
+    # application_mgmt.compliance_frameworks_dashboard is @login_required only
+    # (RegulatoryFramework/ComplianceControl, a different store from the
+    # procurement compliance page above) -- every persona can reach it.
+    "/dashboard/compliance":   set(ARCHETYPES),
+    # risk.risk_register is @login_required only.
+    "/risks/":                 set(ARCHETYPES),
     "/my-applications/":       {"application_manager"},
     "/my-applications/list":   {"application_manager"},
     "/my-applications/health": {"application_manager"},
@@ -84,6 +100,11 @@ POLICY = {
     # is refused -- inviting people into an organisation is not a persona's
     # job, it is its administrator's.
     "/admin/team":             set(),
+    # R1-B56: Agent Registry (owner/charter/delegated-limits per agent) is
+    # gated to platform_admin via @requires_role / _guard in
+    # agent_registry_routes.py -- registering and activating an agent is
+    # not a persona's job.
+    "/admin/agent-registry/":  set(),
     # Agent oversight: pause/resume all agent writes, view refused-call log,
     # and check classification status — all gated by org_admin, which no
     # seeded archetype except platform_admin holds.
@@ -176,6 +197,10 @@ POLICY = {
     # persona reaches it from the sidebar footer. The state it shows is
     # platform-wide; the only thing a user changes is their own subscription.
     "/status":                 set(ARCHETYPES),
+    # Gap register: @login_required and no role gate on the
+    # implementation_planning blueprint, so every signed-in persona reaches
+    # it; the gaps it shows are fenced per organisation by Gap's TenantMixin.
+    "/implementation/gaps":    set(ARCHETYPES),
 }
 for _allowed in POLICY.values():
     _allowed.add("platform_admin")
@@ -204,6 +229,13 @@ TRANSFORMATION_API_PERMITTED = {
     "cto",
     "platform_admin",
 }
+
+# Impact API (GET /api/v1/intelligence/impact/<id>): carries only
+# @login_required — no enterprise-role gate — so every archetype is expected
+# to reach it.  Pagination parameters (cursor, page_size) and response fields
+# (total, next_cursor, health) are on the same route.  Tested separately
+# below because the path includes a dynamic element id.
+IMPACT_API_PERMITTED = set(ARCHETYPES) | {"platform_admin"}
 
 
 def _login(page, base, email, _attempts=2):
@@ -815,6 +847,9 @@ def test_intelligence_impact_route_authorisation(
     _login(page, live_server, seeded["emails"][archetype])
     path = "/api/v1/intelligence/impact/%d" % seeded_interface_element
     actual = _observe(page, live_server, path)
+    assert archetype in IMPACT_API_PERMITTED, (
+        f"{archetype} not in IMPACT_API_PERMITTED set"
+    )
     assert actual == ALLOWED, (
         f"{archetype} could not reach {path}: expected ALLOWED (login_required only)"
     )
