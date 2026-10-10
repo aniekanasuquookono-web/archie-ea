@@ -38,6 +38,24 @@ _SECTION_BY_ENDPOINT_PREFIX = {
     "admin.": "administration",
     "procurement.": "procurement",
     "my_applications.": "my_applications",
+    # R1-B56: lives under /admin/agent-registry but is its own blueprint
+    # ("agent_registry", not "admin"), so the "admin." prefix above never
+    # matched it -- without this entry it leaked to every role the same way
+    # the admin zone itself did before this table existed.
+    "agent_registry.": "administration",
+    # R1-B34 (TB-0135): same leak class, different blueprint -- Formula
+    # Register lives under /admin/formula-register but its endpoints are
+    # "formula_register.*", not "admin.*", so it leaked to every role the
+    # same way agent_registry did above. NOT mapped to "administration":
+    # its own index() route is @login_required only (open to any signed-in
+    # org member) and its sidebar link lives in the portfolio_manager zone,
+    # not the admin one -- only its new_version() POST is role-gated, to
+    # portfolio_manager. Mapping it to "administration" would have hidden
+    # it from the persona who is actually meant to use it while only
+    # incidentally fixing the test. "portfolio_management" (role_access.py)
+    # grants portfolio_manager and platform_admin, matching that reality;
+    # the /admin/ URL prefix itself is misleading but out of scope here.
+    "formula_register.": "portfolio_management",
 }
 
 
@@ -57,7 +75,7 @@ def _link_visible(endpoint: str, requires: str | None = None) -> bool:
     `link_requires_satisfied()` (role_access.py) is the single shared predicate
     `get_sidebar_zones()` itself uses, so this page and the sidebar never disagree.
     """
-    if endpoint in _NOT_RENDERED or endpoint in _DARK:
+    if endpoint in _NOT_RENDERED:
         return False
     if not link_requires_satisfied(current_user, requires):
         return False
@@ -77,6 +95,18 @@ def _link_visible(endpoint: str, requires: str | None = None) -> bool:
 # by the shell-overhaul Wave 1 review. Not the ~50 /architecture/<layer>/<type>
 # drill-downs (those are covered by the single "ArchiMate Elements" library
 # link) — see the review comment on scripts task-3 fix round.
+#
+# _MORE_TOOLS entries carry no "requires" field of their own (unlike
+# role_access.py's _link()), so every entry defaults to visible to anyone
+# -- wrong for the two platform_admin-only tiles below (role_access.py's own
+# comment: "Framework Management and Framework Configuration (platform_admin
+# -only) are reachable from the admin dashboard page"). Overridden here by
+# endpoint rather than widening every tuple in this list to four elements.
+_MORE_TOOLS_REQUIRES = {
+    "framework_config_ui.framework_config_dashboard": "platform_admin",
+    "main.framework_management.dashboard": "platform_admin",
+}
+
 _MORE_TOOLS = [
     # A-20 (readiness table 5.1, 2026-09-22): Ask already has a real sidebar
     # link in every persona's My-work zone (role_access.py's _ASK_LINK), so
@@ -86,6 +116,12 @@ _MORE_TOOLS = [
     # budget) -- this is its one findable home. "network" matches the icon
     # already used for the Twin map button inside ask.html.
     ("Twin Map", "intelligence_ui.twin_map", "network"),
+    # Reached from a Twin map element or an Element properties missing-value
+    # row as well; this is its findable home, outside the sidebar budget.
+    ("Traceability Check", "intelligence_ui.traceability", "route"),
+    # An organisation's governed element properties and the elements missing
+    # them; kept out of the sidebar budget like Twin map.
+    ("Element Properties", "metamodel_properties.index", "sliders-horizontal"),
     ("Stakeholder Map", "stakeholder_map.stakeholder_map_page", "users"),
     ("Capability Health", "strategic.capability_health", "heart-pulse"),
     ("Impact Analysis", "strategic.impact_analysis", "target"),
@@ -98,11 +134,6 @@ _MORE_TOOLS = [
     ("Chief Architect Synthesis", "solution_design.architect_synthesis", "layout-dashboard"),
     # Hidden from this list on 30 Aug 2026 after every entry was requested with
     # a logged-in client and its status recorded:
-    #   implementation_planning.implementation_dashboard - 404 for everyone. Its
-    #     blueprint's before_request aborts 404 unless a feature flag row exists
-    #     AND is active, and the module is marked DEPRECATED in its own
-    #     docstring. "Work Packages" (enterprise.work_packages) is the live
-    #     surface and is already listed.
     #   main.capability_framework.dashboard - 302 to /framework-management/,
     #     already listed as "Framework Management".
     #   dashboard.index - 302 to /dashboard/overview, already a Home zone link.
@@ -119,6 +150,8 @@ _MORE_TOOLS = [
     # and requires each to be known here — deleting them would report five
     # brand-new "orphan modules" that are not orphans. `_NOT_RENDERED` below is
     # what keeps them out of the page and out of global search.
+    # Serves a real page again since the work package store rewrite, so it is
+    # listed (it is no longer in _NOT_RENDERED).
     ("Implementation Planning", "implementation_planning.implementation_dashboard", "package"),
     ("Capability Framework", "main.capability_framework.dashboard", "map"),
     ("Dashboard", "dashboard.index", "layout-dashboard"),
@@ -140,10 +173,13 @@ _MORE_TOOLS = [
     ("Agentic Gaps", "main.agentic_gaps_ui", "search"),
     ("Application Management", "application_management", "layout-dashboard"),
     ("Architecture Assistant", "architect_ui.architecture_assistant", "bot"),
+    ("Model Registry", "dynamic_dashboards.model_registry_index", "database"),
     ("Business Case", "business_case.index", "briefcase"),
     ("Business Model", "business_model.index", "layout-dashboard"),
+    ("EA Workflows", "main.ea_workflows_dashboard", "git-merge"),
     ("Framework Config", "framework_config_ui.framework_config_dashboard", "settings"),
     ("Framework Management", "main.framework_management.dashboard", "settings"),
+    ("Hybrid Mapping Dashboard", "main.hybrid_mapping_dashboard", "map"),
     ("Industry APQC", "industry_apqc.industry_apqc_dashboard", "layers"),
     ("Integration Workflows", "integration.workflow_dashboard", "git-branch"),
     ("Market Intelligence", "architect_ui.market_intelligence", "trending-up"),
@@ -152,25 +188,16 @@ _MORE_TOOLS = [
     # pointing at this same endpoint - listed once there rather than twice.
     ("Product Roadmap", "roadmap_outcome.product_roadmap_page", "map"),
     ("Risk Register", "risk.risk_register", "alert-triangle"),
-    ("Vendor ArchiMate Analysis", "main.vendor_archimate_analysis", "building"),
-    ("Integrations", "main.integrations", "cloud"),
-    ("ArchiMate Roadmap", "main.archimate_roadmap", "map"),
-    ("Enterprise Dashboard", "enterprise.enterprise_dashboard", "layout-dashboard"),
-    # Sidebar diet (22 Sep 2026): the eight endpoints _DARK (below) names.
-    # Real rows, with their real labels, the same shape as every other row in
-    # this list -- not synthesized elsewhere from the reason text, which is
-    # for a human reading _DARK, not for display. _link_visible (below)
-    # suppresses every one of these from rendering here and from search,
-    # exactly the way it already suppresses _NOT_RENDERED; restoring one to
-    # view is deleting its entry from _DARK, nothing here.
-    ("Architecture Journey", "architecture_journey.index", "compass"),
-    ("Hybrid Mapping Dashboard", "main.hybrid_mapping_dashboard", "map"),
-    ("Data Architecture", "data_architecture.data_architecture_dashboard", "database"),
-    ("Data Lineage", "data_architecture.data_lineage_view", "git-fork"),
-    ("Tech Radar", "tech_radar.index", "radar"),
-    ("EA Workflows", "main.ea_workflows_dashboard", "git-merge"),
-    ("Model Registry", "dynamic_dashboards.model_registry_index", "database"),
     ("Usage Analytics", "usage_analytics.analytics_root", "bar-chart-3"),
+    ("Vendor Analysis", "main.vendor_archimate_analysis", "building"),
+    ("Integrations", "main.integrations", "cloud"),
+    ("Architecture Roadmap", "main.archimate_roadmap", "map"),
+    ("Enterprise Dashboard", "enterprise.enterprise_dashboard", "layout-dashboard"),
+    # Every signed-in user can already open this from the sidebar footer
+    # (app/modules/monitoring/routes/status_routes.py's own docstring) --
+    # no persona zone owns it since it is the same page for every
+    # organisation, so this directory is its one discoverability-test home.
+    ("Service Status", "service_status.status_page", "activity"),
 ]
 
 # Endpoints present in _MORE_TOOLS / SIDEBAR_ZONES that must never be rendered
@@ -180,39 +207,11 @@ _MORE_TOOLS = [
 # one of them, so an entry that becomes live again fails the suite instead of
 # staying invisible.
 _NOT_RENDERED = {
-    # Hard 404 for every user: the blueprint's before_request aborts unless a
-    # feature-flag row exists AND is active, and the module's own docstring
-    # says DEPRECATED. "Work Packages" (enterprise.work_packages) is live.
-    "implementation_planning.implementation_dashboard": "404 - deprecated module",
     # 302 aliases onto a page this directory already lists under its own name.
     "main.capability_framework.dashboard": "302 -> Framework Management",
     "dashboard.index": "302 -> Dashboard Overview",
     "unified_duplicate.enterprise_dashboard": "302 -> Duplicate Detection",
     "architect_ui.roadmap_builder": "302 -> Roadmaps",
-}
-
-# Real, working pages, still reachable by their own URL only, that no
-# persona's sidebar zone points at any more, because no segment's day-to-day
-# work asks the question they answer today. Reachable by URL only -- no other
-# page in the product links to one of these; a claimed in-app deep link
-# belongs in its own brief once one is actually built, not in this reason
-# string. Each still has a real row, under its real label, in _MORE_TOOLS
-# above (see the comment there); `_link_visible` (below) is what actually
-# suppresses that row from rendering and from search, the same way it
-# already suppresses `_NOT_RENDERED` — so `all_module_links()` keeps knowing
-# every one of these routes exists (the discoverability audit and the
-# URL-map cross-check both read it), while `visible_module_links()` -- and so
-# this page and search -- drops them. A later change can put one back in a
-# zone; nothing about the route, template or data behind it changes here.
-_DARK = {
-    "architecture_journey.index": "a second guided front door; onboarding already covers that job",
-    "main.hybrid_mapping_dashboard": "capability-vendor-application mapping statistics nobody asks for today",
-    "data_architecture.data_architecture_dashboard": "model counts by tier nobody asks for today",
-    "data_architecture.data_lineage_view": "derived lineage; reachable by URL only, no in-app link to it",
-    "tech_radar.index": "technology rings; reachable by URL only, no in-app link to it",
-    "main.ea_workflows_dashboard": "a workflow-engine dashboard nobody asks for today",
-    "dynamic_dashboards.model_registry_index": "developer tooling behind the platform, not a persona page",
-    "usage_analytics.analytics_root": "shows nothing while usage tracking stays off",
 }
 
 _ZONE_ORDER = ["home", "my_work", "library", "governance", "admin"]
@@ -243,7 +242,10 @@ def all_module_links():
             for link in zone["links"]:
                 seen.setdefault(link["endpoint"], link)
     for label, endpoint, icon in _MORE_TOOLS:
-        seen.setdefault(endpoint, {"label": label, "endpoint": endpoint, "icon": icon})
+        seen.setdefault(endpoint, {
+            "label": label, "endpoint": endpoint, "icon": icon,
+            "requires": _MORE_TOOLS_REQUIRES.get(endpoint),
+        })
     return list(seen.values())
 
 
@@ -346,7 +348,8 @@ def index():
     more_tools = _resolve(
         {"label": label, "endpoint": endpoint, "icon": icon}
         for label, endpoint, icon in _MORE_TOOLS
-        if endpoint not in zone_endpoints and _link_visible(endpoint)
+        if endpoint not in zone_endpoints
+        and _link_visible(endpoint, _MORE_TOOLS_REQUIRES.get(endpoint))
     )
     total = sum(len(section["links"]) for section in sections) + len(more_tools)
     return render_template(
