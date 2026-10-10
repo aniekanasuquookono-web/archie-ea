@@ -48,7 +48,15 @@ def role_admitted(user, allowed_roles):
 def may_handle_data_subject_requests(user):
     """True when ``user`` may open the data-subject request pages: the roles in
     DATA_SUBJECT_REQUEST_ROLES, or an administrator (as ``requires_role``
-    always admits administrators)."""
+    always admits administrators).
+
+    R3-5 (PR 428 round 4): genuine authority is judged by
+    ``holds_administrator_authority`` (``is_org_admin``/``is_platform_admin``),
+    never by the raw ``enterprise_role`` persona column happening to read
+    the literal string "platform_admin" (that column's legacy default for
+    every account). Otherwise this sidebar/directory check would keep
+    showing the data-subject-request pages to a default-persona user that
+    ``requires_role`` now correctly refuses."""
     return role_admitted(user, DATA_SUBJECT_REQUEST_ROLES)
 
 
@@ -96,6 +104,24 @@ def requires_role(allowed_roles: Union[str, List[str]]):
                 )
                 abort(401)
 
+            # R3-5 (PR 428 round 4): "Always allow platform_admin" above
+            # used to be implemented by appending the literal string
+            # "platform_admin" to allowed_roles and comparing it against
+            # get_user_role(current_user) -- the raw, uncomputed
+            # ``enterprise_role`` persona column, which defaults to
+            # "platform_admin" for every legacy account ("existing users
+            # get full access", app/models/user.py). That let a default-
+            # persona Viewer through every route this decorator guards,
+            # all nine GDPR data-subject-request routes included, the same
+            # "default persona stands in for platform authority" bug this
+            # round already fixed in role_required/require_roles. Genuine
+            # platform authority is judged the one real way, same as those
+            # two decorators.
+            from app.middleware.tenant_decorators import is_platform_admin
+
+            if is_platform_admin(current_user):
+                return f(*args, **kwargs)
+
             # Get user's role
             user_role = get_user_role(current_user)
 
@@ -134,6 +160,18 @@ def requires_procurement(f):
     Allows procurement role and portfolio_manager (read-only context).
     """
     return requires_role(["procurement", "portfolio_manager"])(f)
+
+
+def requires_procurement_or_finance(f):
+    """
+    Shorthand for the two procurement pages a finance persona also owns:
+    licences and spend (R1-B36, TB-0146). Deliberately NOT applied to
+    contracts, renewals or the compliance dashboard -- adding "finance" to
+    the shared requires_procurement would have opened every procurement
+    page to it, which the authorisation matrix caught as a real mismatch
+    (POLICY only names the two pages finance's own sidebar links to).
+    """
+    return requires_role(["procurement", "portfolio_manager", "finance"])(f)
 
 
 def requires_application_owner(f):
