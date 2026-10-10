@@ -525,15 +525,13 @@ def test_11_prioritize_gaps_keeps_the_row_and_save_discovered_gaps_treats_it_lik
     assert "priority" in kept
     assert "priority_score" in kept
 
-    # save_discovered_gaps is untouched by this task. On this branch it
-    # raises for every gap type it is given -- an existing keyword argument
-    # mismatch between the row dict and the persistence model, caught
-    # internally and rolled back -- so nothing survives today regardless of
-    # gap_type; that outcome predates this task and is not something a
-    # maturity row can be blamed for. What is in scope: proving the new
+    # save_discovered_gaps is untouched by this task, but main has since fixed
+    # the ImplementationGap/Gap column-name bug that method's own docstring
+    # describes, and tightened its signature to (gaps_data, architecture_id,
+    # organization_id). What is in scope here is unchanged: proving the new
     # gap_type string is not special-cased. A maturity row and an
     # already-existing gap type, given the identical shape, produce the
-    # identical outcome.
+    # identical, now-successful outcome.
     persistable_maturity_row = dict(kept)
     persistable_maturity_row["name"] = f"Capability maturity gap {maturity_row['capability_id']}"
     persistable_other_row = dict(persistable_maturity_row)
@@ -543,12 +541,14 @@ def test_11_prioritize_gaps_keeps_the_row_and_save_discovered_gaps_treats_it_lik
 
     with tenant_ctx(org_a.id):
         before = ImplementationGap.query.filter(ImplementationGap.name.in_(both_names)).count()
-        maturity_saved = service.save_discovered_gaps({"gaps": [persistable_maturity_row]})
-        other_saved = service.save_discovered_gaps({"gaps": [persistable_other_row]})
+        maturity_saved = service.save_discovered_gaps(
+            {"gaps": [persistable_maturity_row]}, None, org_a.id)
+        other_saved = service.save_discovered_gaps(
+            {"gaps": [persistable_other_row]}, None, org_a.id)
         after = ImplementationGap.query.filter(ImplementationGap.name.in_(both_names)).count()
 
-        assert maturity_saved == other_saved
-        assert after == before
+        assert maturity_saved == other_saved == {"saved": 1, "duplicates": 0, "failed": 0}
+        assert after - before == 2
 
 
 # ---------------------------------------------------------------------------
