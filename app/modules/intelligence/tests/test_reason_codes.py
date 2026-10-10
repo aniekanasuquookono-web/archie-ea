@@ -1,7 +1,7 @@
 """T-001 acceptance criterion 13: the DE-14 reason-code vocabulary is closed.
 
 Mapping:
-    13 -> test_reason_codes_has_exactly_forty_one_members,
+    13 -> test_reason_codes_has_exactly_fifty_one_members,
           test_unknown_reason_code_is_rejected_not_passed_through
 
 T-004 (US-1) added two members -- ``no_tenant_context`` and
@@ -33,6 +33,10 @@ licence absence conditions. A fourth, ``licence_usage_not_synced``, covers a
 licence entry whose usage figures have never been synced from the source
 system -- distinct from ``no_licence_recorded``, which means no licence
 rows exist for the component at all.
+The connection explanation ("Why?" on a derived row) added four more --
+``relationship_not_recorded``, ``drawn_by_not_recorded``,
+``drawn_at_not_recorded`` and ``rule_not_recorded`` -- reusing the existing
+``element_not_found`` for an element on the chain that does not resolve.
 
 "Closed" means no endpoint may invent an absence string inline, not that the
 set is frozen at sixteen forever; the module's own docstring says a new
@@ -43,9 +47,10 @@ independently, by different lenses' briefs each adding a member without
 re-deriving the true count); merging branches that each added members
 independently (L2/L4/role-gating, T-S1, the maturity read helper, the
 programme lens's own plateau/gap pair, the impact criticality and
-recovery-objectives pair, and the Portfolio-block additions) is the same
-class of drift, resolved here by re-deriving the real count (41) rather
-than trusting any one side's own stale number.
+recovery-objectives pair, the Portfolio-block additions, and the connection
+explanation's four) is the same class of drift, resolved here by
+re-deriving the real count (51) rather than trusting any one side's own
+stale number.
 """
 
 from __future__ import annotations
@@ -67,7 +72,8 @@ from app.modules.intelligence.services.reason_codes import (
 # withdrawal reason, role-gating's addition, T-S1's four additions, the
 # programme lens's own plateau/gap pair, the maturity read helper's two
 # additions, the impact criticality and recovery-objectives block's two
-# additions and the Portfolio-block's four additions.
+# additions, the Portfolio-block's four additions and the connection
+# explanation's four.
 _EXPECTED = {
     "no_ownership_recorded",
     "no_maturity_recorded",
@@ -100,6 +106,12 @@ _EXPECTED = {
     "no_capability_linked",
     "value_stream_not_linked_to_model",
     "dependency_direction_unknown",
+    "no_data_recorded",
+    "no_steward_recorded",
+    "no_lineage_recorded",
+    "no_compliance_controls_recorded",
+    "no_control_evidence",
+    "no_policy_scan_recorded",
     "no_plateau_recorded",
     "no_gap_recorded",
     "no_maturity_target_recorded",
@@ -110,11 +122,15 @@ _EXPECTED = {
     "no_health_recorded",
     "no_licence_recorded",
     "licence_usage_not_synced",
+    "relationship_not_recorded",
+    "drawn_by_not_recorded",
+    "drawn_at_not_recorded",
+    "rule_not_recorded",
 }
 
 
-def test_reason_codes_has_exactly_forty_one_members():
-    assert len(REASON_CODES) == 41
+def test_reason_codes_has_exactly_fifty_one_members():
+    assert len(REASON_CODES) == 51
     assert REASON_CODES == frozenset(_EXPECTED)
 
 

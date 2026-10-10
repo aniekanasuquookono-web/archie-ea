@@ -16,9 +16,10 @@ from __future__ import annotations
 # additions, the Accountability lens's two plus its withdrawal reason,
 # role-gating's addition, the four T-S1 additions, the impact criticality and
 # recovery objectives pair, the programme lens's own plateau/gap pair, the
-# two maturity-read-helper additions, the Portfolio-block's three additions
-# and the licence-sync addition below
-# (forty-one total), exactly, nothing invented.
+# two maturity-read-helper additions, the Portfolio-block's three additions,
+# the licence-sync addition and the four connection-explanation additions
+# below (fifty-one total, re-derived rather than trusted from any one side's
+# own stale count), exactly, nothing invented.
 REASON_CODES = frozenset(
     {
         "no_ownership_recorded",
@@ -126,6 +127,24 @@ REASON_CODES = frozenset(
         # no endpoint may invent an absence string inline.
         "no_criticality_recorded",
         "no_recovery_objective_recorded",
+        # L7 (Data lens) additions: Ask's Data lens lists the DataObject rows
+        # linked to the picked element. Most elements have none, an honest
+        # absence; an object with neither a steward nor an owner recorded is a
+        # distinct fact (nobody is named, not that the name failed to load);
+        # and an object with no lineage edge recorded in or out has no known
+        # flow. Each stays tied to its own absence condition.
+        "no_data_recorded",
+        "no_steward_recorded",
+        "no_lineage_recorded",
+        # Compliance (under L6) additions: Ask's Compliance question reads the
+        # controls an application is mapped to. No mapping is an honest
+        # absence (never "0% compliant"); a mapped control with neither
+        # evidence nor a verification date is a distinct fact from "not
+        # mapped"; and no policy scan on record means the last-scan time is
+        # unknown, not that everything passed.
+        "no_compliance_controls_recorded",
+        "no_control_evidence",
+        "no_policy_scan_recorded",
         # The programme lens's own plateau/gap block: a work package's stored
         # plateau_id/gap_id may be unset (a nullable FK), or, in principle,
         # point at a record belonging to a different tenant (the FK itself
@@ -162,6 +181,18 @@ REASON_CODES = frozenset(
         # no_licence_recorded above, which means no licence rows exist for
         # the component at all.
         "licence_usage_not_synced",
+        # Connection explanation additions: the "Why?" read of one derived
+        # row (services/explanation.py) turns its stored chain back into the
+        # drawn relationships. A chain id that no longer resolves inside the
+        # organisation, a relationship nobody is recorded as having drawn or
+        # with no creation time, and a rule id the rule table does not
+        # describe are each an honest absence shown as "not recorded" --
+        # never dropped, never filled in. An element on the chain that does
+        # not resolve reuses the existing element_not_found.
+        "relationship_not_recorded",
+        "drawn_by_not_recorded",
+        "drawn_at_not_recorded",
+        "rule_not_recorded",
     }
 )
 
