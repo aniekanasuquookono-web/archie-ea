@@ -209,7 +209,7 @@ class ArchiMateLayer:
     APPLICATION = "application"
     TECHNOLOGY = "technology"
     PHYSICAL = "physical"
-    IMPLEMENTATION = "implementation"
+    IMPLEMENTATION = "implementation_migration"
     MOTIVATION = "motivation"
 
     ALL = [STRATEGY, BUSINESS, APPLICATION, TECHNOLOGY, PHYSICAL, IMPLEMENTATION, MOTIVATION]

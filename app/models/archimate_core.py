@@ -254,10 +254,11 @@ class RelationshipSuggestion(db.Model):  # migration-exempt — uses db.create_a
 # ArchiMate 3.2 relationship validity matrix
 # Key: (relationship_type, source_layer, target_layer) → bool
 # Layers: business, application, technology, motivation, strategy,
-# implementation_migration, physical. "implementation_migration" matches the
-# spelling app/models/archimate_element_types.py's ArchiMateElementTypes uses
-# (the single authority for the layer string -- see _ELEMENT_TYPE_LAYER below);
-# it used to read "implementation" here, disagreeing with that authority.
+# implementation_migration, physical. "implementation_migration" matches
+# ArchiMateLayer.IMPLEMENTATION (app/models/constants.py), the single
+# authority for the layer string -- see _ELEMENT_TYPE_LAYER below. Four
+# association entries deliberately stay on the old bare "implementation"
+# spelling -- see the comment immediately above them.
 #
 # This layer-triple matrix is coarser than the element-type-keyed one in
 # app/config/archimate_relationship_matrix.py (via RelationshipValidator),
@@ -340,10 +341,22 @@ VALID_RELATIONSHIPS = {
     ("association", "technology", "application"): True,
     ("association", "business", "motivation"): True,
     ("association", "motivation", "business"): True,
-    ("association", "strategy", "implementation"): True,  # ArchiMate 3.2 §5.2.4: option ↔ plan item
-    ("association", "implementation", "strategy"): True,  # ArchiMate 3.2 §5.2.4: plan item ↔ option
-    ("association", "motivation", "implementation"): True,  # ArchiMate 3.2 §5.2.4: outcome ↔ work package
-    ("association", "implementation", "motivation"): True,  # ArchiMate 3.2 §5.2.4: work package ↔ outcome
+    # ArchiMate 3.2 §5.2.4 also permits an association for option ↔ plan
+    # item (strategy ↔ implementation_migration) and outcome ↔ work package
+    # (motivation ↔ implementation_migration). Deliberately NOT added here:
+    # orphan_layer is always canonicalized to "implementation_migration"
+    # before any VALID_RELATIONSHIPS lookup (ArchiMateLayer.canonical,
+    # called by _orphan_link_choice and _link_orphan_elements), and that
+    # function's type-priority loop checks association before realization
+    # -- adding these would make it pick Association over the Realization
+    # entries above for every implementation_migration/motivation orphan,
+    # which tests/test_archimate_orphan_link_layers.py's
+    # test_orphan_on_implementation_migration_links_to_motivation_by_realization
+    # pins against. This coarse table is non-authoritative for direct
+    # validation anyway (see the big comment above VALID_RELATIONSHIPS);
+    # the precise, element-type-keyed matrix in
+    # app/config/archimate_relationship_matrix.py is where that ArchiMate
+    # 3.2 §5.2.4 pairing belongs if it is ever needed for real validation.
     ("association", "business", "strategy"): True,  # ArchiMate 3.2 §5.2.4: key partner ↔ resource/capability
     ("association", "strategy", "business"): True,  # ArchiMate 3.2 §5.2.4: resource/capability ↔ key partner
     # Specialization — within same layer
