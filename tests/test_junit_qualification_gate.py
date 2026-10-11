@@ -10,9 +10,16 @@ import yaml
 GATE = Path(__file__).resolve().parents[1] / 'scripts/ci/check_junit_qualification.py'
 
 
+def _browser_journey_steps(workflow):
+    steps = []
+    for job_name in ('smoke-main', 'smoke-adversarial', 'smoke-other'):
+        steps.extend(workflow['jobs'][job_name]['steps'])
+    return steps
+
+
 def test_independent_browser_stages_run_after_another_journey_fails():
     workflow = yaml.safe_load((GATE.parents[2] / '.github/workflows/ci.yml').read_text(encoding='utf-8'))
-    steps = workflow['jobs']['smoke']['steps']
+    steps = _browser_journey_steps(workflow)
     stages = [step for step in steps if any(name in step.get('name', '')
               for name in ('Interaction-reality census', 'Adversarial regression probes',
                            'Enabled AI protocol', 'Providerless saved-guide'))]
@@ -24,12 +31,13 @@ def test_independent_browser_stages_run_after_another_journey_fails():
 
 def test_provider_modes_and_history_report_are_explicit():
     workflow = yaml.safe_load((GATE.parents[2] / '.github/workflows/ci.yml').read_text(encoding='utf-8'))
-    steps = workflow['jobs']['smoke']['steps']
+    steps = _browser_journey_steps(workflow)
     adversarial = next(step for step in steps if step.get('name', '').startswith('Adversarial regression'))
     assert adversarial['env']['SMOKE_AI_PROTOCOL_STUB'] == '1'
     history = next(step for step in steps if step.get('name') == 'Providerless saved-guide history journeys')
     assert history['env'] == {'AI_PAGE_GUIDE_ENABLED': 'true', 'SMOKE_AI_PROTOCOL_STUB': ''}
-    required = next(step for step in steps if step.get('name') == 'Require all browser reports without skips')
+    aggregate_steps = workflow['jobs']['smoke']['steps']
+    required = next(step for step in aggregate_steps if step.get('name') == 'Require all browser reports without skips')
     assert 'chromium-guide-history.xml' in required['run']
 
 

@@ -79,6 +79,14 @@ REQUIRED_CHECKS = (
     "Database gates (schema drift)",
     "SAST (bandit)",
     "Browser journeys (one per archetype)",
+    # The sub-shards "Browser journeys (one per archetype)" fans out into: each
+    # is real gating work in its own right, not merely advisory, so each is
+    # required on its own rather than excluded behind the aggregate job.
+    "Browser journeys — main shard 0",
+    "Browser journeys — main shard 1",
+    "Browser journeys — main shard 2",
+    "Browser journeys — adversarial",
+    "Browser journeys — other",
     "Browser compatibility (firefox)",
     "Browser compatibility (webkit)",
     "Level 10 archetype walkthrough",

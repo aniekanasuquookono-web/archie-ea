@@ -232,7 +232,11 @@ def test_the_only_exclusion_is_the_image_build_and_it_says_why():
         assert name in dw.REQUIRED_CHECKS
     for shard in range(8):
         assert f"Tests (pytest + coverage) \u2014 shard {shard}" in dw.REQUIRED_CHECKS
-    assert len(dw.REQUIRED_CHECKS) == 19
+    for name in ("Browser journeys \u2014 main shard 0", "Browser journeys \u2014 main shard 1",
+                 "Browser journeys \u2014 main shard 2", "Browser journeys \u2014 adversarial",
+                 "Browser journeys \u2014 other"):
+        assert name in dw.REQUIRED_CHECKS
+    assert len(dw.REQUIRED_CHECKS) == 24
 
 
 @pytest.mark.parametrize("dry_run", ["true", "false"])
