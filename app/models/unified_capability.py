@@ -50,6 +50,13 @@ class HybridCapabilityTenantMixin:
     This is intentionally separate from ``TenantMixin`` because the ordinary
     equality filter would hide shared reference rows.  The model-specific event
     handlers below provide its read and write mechanism.
+
+    This exact pattern has since been generalised into ``HybridTenantMixin``
+    (``app/models/mixins/core.py``) for its own shared-catalogue tables. This
+    class becomes a plain alias of that one once the capability-store
+    consolidation merges and this model's own event handlers below are
+    retired in favour of the generic ones; kept distinct for now so this
+    change does not touch that other file beyond this comment.
     """
 
     @declared_attr
@@ -473,6 +480,60 @@ class UnifiedCapability(HybridCapabilityTenantMixin, db.Model, OptimisticLockMix
             }
         return result
 
+    @classmethod
+    def maturity_for_capability_ids(
+        cls, capability_ids: list, *, organization_id: int
+    ) -> dict:
+        """T-S1 (ADR-S2): batch maturity read keyed by the authority's own
+        primary key, for a reader that already holds ``unified_capabilities``
+        ids (e.g. from a mapping table's foreign key) rather than source
+        provenance. Unlike :meth:`maturity_for_source` / (s), which are keyed
+        by the *string* form of a ``(source_table, source_id)`` pair, this is
+        keyed by the *integer* capability id.
+
+        ``organization_id`` is a required keyword-only argument -- there is no
+        permissive ``or_(... is_(None))`` fallback here, deliberately unlike
+        the two existing members. A capability id with no row, a row owned by
+        another tenant, a shared catalogue row (``organization_id IS NULL``),
+        or a row whose ``current_maturity_level`` is null all come back with
+        ``no_maturity_recorded`` and two nulls: a shared catalogue row
+        contributes its identity and its mapping elsewhere, never its
+        maturity, because a shared number is not this tenant's assessment.
+
+        Every id asked for is present in the result. An empty input list
+        returns an empty dict without a query.
+        """
+        from app.modules.intelligence.services.reason_codes import validate_reason_code
+
+        wanted = sorted({int(cid) for cid in capability_ids})
+        result = {
+            cap_id: {
+                "current_maturity_level": None,
+                "target_maturity_level": None,
+                "reason_code": validate_reason_code("no_maturity_recorded"),
+            }
+            for cap_id in wanted
+        }
+        if not wanted:
+            return result
+
+        query = cls.query.filter(
+            cls.id.in_(wanted),
+            # Strict -- never the permissive or_(... is_(None)) predicate the
+            # two source-provenance members use. A shared catalogue row's
+            # maturity is never read as this tenant's own.
+            cls.organization_id == organization_id,
+        )
+        for row in query.all():
+            if row.current_maturity_level is None:
+                continue
+            result[row.id] = {
+                "current_maturity_level": row.current_maturity_level,
+                "target_maturity_level": row.target_maturity_level,
+                "reason_code": None,
+            }
+        return result
+
     def to_dict(self):
         """Convert to dictionary for API responses"""
         return {
@@ -783,6 +844,16 @@ class ValueStreamStage(TenantMixin, db.Model):
     target_duration = Column(db.Integer)  # Target in hours/days
     current_duration = Column(db.Integer)  # Current in hours/days
     quality_gate = Column(db.Boolean, default=False)
+
+    # What must be true for work to enter / leave this stage, who takes part in
+    # it and what value it hands on (BIZBOK stage definition). Free text, one
+    # item per line for stakeholders and value items. Nullable so
+    # `flask reconcile-schema` can add them to existing databases; NULL means
+    # "not recorded" and renders as an em dash, never as an empty list.
+    entry_criteria = Column(db.Text, nullable=True)
+    exit_criteria = Column(db.Text, nullable=True)
+    stakeholders = Column(db.Text, nullable=True)
+    value_items = Column(db.Text, nullable=True)
 
     # Timestamps
     created_at = Column(db.DateTime, default=datetime.utcnow)
